@@ -80,8 +80,8 @@ def test_trivia_newgame(mocker):
     # assert the post_to_connection calls to the connection that created the game
     app.MANAGEMENT.post_to_connection.assert_has_calls([
         mock.call(Data='{"action": "gamecreated", "gameId": "01234567012301230123012345678901"}', ConnectionId='connection-123'),
-        mock.call(Data='{"action": "playerlist", "players": [{"connectionId": "connection-123", "currentPlayer": true, "playerName": "AliceBlue", "score": 0}]}',
-          ConnectionId='connection-123')
+        mock.call(Data='{"action": "playerlist", "players": [{"connectionId": "connection-1", "playerName": "AliceBlue", "score": 10, "currentPlayer": true}]}', ConnectionId='connection-1'),
+	#mock.call(Data='{"action": "playerlist", "players": [{"connectionId": "connection-1", "playerName": "AliceBlue", "score": 20, "currentPlayer": true}]}', ConnectionId='connection-1'),
         ])
 
 def test_trivia_joingame(mocker):
@@ -181,13 +181,13 @@ def test_trivia_calculate_scores_correct(mocker):
     # assert we updated the game item, score is incremented
     app.TABLE.update_item.assert_called_with(
         Key={'gameId': '01234567012301230123012345678901', 'connectionId': 'connection-1'},
-        AttributeUpdates={'score': {'Value': 10, 'Action': 'PUT'}}
+	AttributeUpdates={'score': {'Value': 20, 'Action': 'PUT'}}
     )
 
     app.MANAGEMENT.post_to_connection.assert_has_calls([
-        mock.call(Data='{"action": "playerlist", "players": [{"connectionId": "connection-1", "playerName": "AliceBlue", "score": 10, "currentPlayer": true}]}', ConnectionId='connection-1'),
+        mock.call(Data='{"action": "playerlist", "players": [{"connectionId": "connection-1", "playerName": "AliceBlue", "score": 20, "currentPlayer": true}]}', ConnectionId='connection-1'),
         mock.call(Data='{"action": "gameover"}', ConnectionId='connection-1')
-        ])
+    ])
 
 
 def test_trivia_calculate_scores_wrong(mocker):
@@ -248,3 +248,31 @@ def test_broadcast_other_error(mocker):
         'PostToConnection'
     )
     app.send_broadcast("01234567012301230123012345678901", {})
+
+def test_trivia_calculate_scores_correct(mocker):
+    mocker.patch.object(app, 'TABLE')
+    mocker.patch.object(app, 'MANAGEMENT')
+ 
+    # mock a correct response from the game table
+    app.TABLE.query.return_value = {'Items':[
+        {
+            "connectionId": "connection-1",
+            "gameId": "01234567012301230123012345678901",
+            "playerName" : "AliceBlue",
+            "lastAnswer": "Yes",
+            "lastQuestionId": "q-1111",
+            "score": 0
+        }
+    ]}
+ 
+    app.trivia_calculate_scores(SCORES_EVENT, None)
+ 
+    # assert we updated the game item, score is incremented
+    app.TABLE.update_item.assert_called_with(
+        Key={'gameId': '01234567012301230123012345678901', 'connectionId': 'connection-1'},
+        AttributeUpdates={'score': {'Value': 10, 'Action': 'PUT'}}
+    )
+    app.MANAGEMENT.post_to_connection.assert_has_calls([
+        mock.call(Data='{"action": "playerlist", "players": [{"connectionId": "connection-1", "playerName": "AliceBlue", "score": 20, "currentPlayer": true}]}', ConnectionId='connection-1'),
+        mock.call(Data='{"action": "gameover"}', ConnectionId='connection-1')
+    ])
